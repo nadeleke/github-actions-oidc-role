@@ -17,18 +17,26 @@ class OidcRoleStack(Stack):
         **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # OIDC provider ARN (pre-created by AWS when first used)
-        oidc_provider_arn = f"arn:aws:iam::{self.account}:oidc-provider/token.actions.githubusercontent.com"
+        # Create the OIDC provider for GitHub Actions
+        github_oidc_provider = iam.CfnOIDCProvider(
+            self,
+            "GitHubOIDCProvider",
+            url="https://token.actions.githubusercontent.com",
+            client_id_list=["sts.amazonaws.com"],
+            thumbprint_list=["6938fd4d98bab03faadb97b34396831e3780aea1"]
+        )
 
-        # Trust policy for GitHub Actions OIDC
+        # Now you can refer to this OIDC provider's ARN:
+        oidc_provider_arn = github_oidc_provider.attr_arn
+
+        # Trust policy for GitHub Actions OIDC principal
         github_oidc_principal = iam.OpenIdConnectPrincipal(
             iam.OpenIdConnectProvider.from_open_id_connect_provider_arn(
-                self, "GitHubOIDCProvider", oidc_provider_arn
+                self, "GitHubOIDCProviderReference", oidc_provider_arn
             )
         ).with_conditions({
             "StringEquals": {
                 "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                # "token.actions.githubusercontent.com:sub": f"repo:{github_org}/{github_repo}:*"
                 "token.actions.githubusercontent.com:sub": f"repo:{github_org}/{github_repo}:{github_branch}"
             }
         })
@@ -43,10 +51,8 @@ class OidcRoleStack(Stack):
             max_session_duration=Duration.hours(1)
         )
 
-        # Example policy: Full access to CloudFormation + S3 (adjust as needed)
         deployment_role.add_managed_policy(
             iam.ManagedPolicy.from_aws_managed_policy_name("AdministratorAccess")
         )
 
-        # Output role ARN
         CfnOutput(self, "DeploymentRoleArn", value=deployment_role.role_arn, description="OIDC Role Arn")
