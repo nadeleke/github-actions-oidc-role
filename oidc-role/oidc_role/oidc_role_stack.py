@@ -1,4 +1,3 @@
-from pydoc import describe
 from constructs import Construct
 from aws_cdk import (
     Stack,
@@ -10,14 +9,14 @@ from aws_cdk import (
 class OidcRoleStack(Stack):
 
     def __init__(self, scope: Construct, construct_id: str, *,
-        github_org: str,
-        github_repo: str,
-        github_branch: str = '*',
-        role_name: str = 'github-actions-deploy-role',
-        **kwargs) -> None:
+                 github_org: str,
+                 github_repo: str,
+                 github_branch: str = '*',
+                 role_name: str = 'github-actions-deploy-role',
+                 **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # Create the OIDC provider for GitHub Actions
+        # Create the OIDC provider for GitHub Actions (if not already created)
         github_oidc_provider = iam.CfnOIDCProvider(
             self,
             "GitHubOIDCProvider",
@@ -26,10 +25,17 @@ class OidcRoleStack(Stack):
             thumbprint_list=["6938fd4d98bab03faadb97b34396831e3780aea1"]
         )
 
-        # Now you can refer to this OIDC provider's ARN:
+        # Reference to the OIDC provider ARN
         oidc_provider_arn = github_oidc_provider.attr_arn
 
-        # Trust policy for GitHub Actions OIDC principal
+        # Construct the 'sub' condition with full ref prefix and wildcard support
+        # GitHub OIDC 'sub' usually comes as "repo:<org>/<repo>:ref:refs/heads/<branch>"
+        if github_branch == '*':
+            sub_condition = f"repo:{github_org}/{github_repo}:ref:refs/heads/*"
+        else:
+            sub_condition = f"repo:{github_org}/{github_repo}:ref:refs/heads/{github_branch}"
+
+        # Define the principal for the role trust policy with correct conditions
         github_oidc_principal = iam.OpenIdConnectPrincipal(
             iam.OpenIdConnectProvider.from_open_id_connect_provider_arn(
                 self, "GitHubOIDCProviderReference", oidc_provider_arn
@@ -37,11 +43,11 @@ class OidcRoleStack(Stack):
         ).with_conditions({
             "StringEquals": {
                 "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                "token.actions.githubusercontent.com:sub": f"repo:{github_org}/{github_repo}:{github_branch}"
+                "token.actions.githubusercontent.com:sub": sub_condition
             }
         })
 
-        # IAM role for GitHub Actions deployments
+        # Define the IAM role assumed by GitHub Actions via OIDC
         deployment_role = iam.Role(
             self,
             "GitHubOIDCDeploymentRole",
@@ -51,8 +57,11 @@ class OidcRoleStack(Stack):
             max_session_duration=Duration.hours(1)
         )
 
+        # Attach a managed policy — consider scoping down permissions as needed
         deployment_role.add_managed_policy(
             iam.ManagedPolicy.from_aws_managed_policy_name("AdministratorAccess")
         )
 
+        # Outputs for use after deployment
         CfnOutput(self, "DeploymentRoleArn", value=deployment_role.role_arn, description="OIDC Role Arn")
+        CfnOutput(self, "OIDCProviderArn", value=github_oidc_provider.attr_arn, description="OIDC Provider Arn")
