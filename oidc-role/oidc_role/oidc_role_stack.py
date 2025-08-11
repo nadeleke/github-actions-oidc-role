@@ -30,11 +30,6 @@ class OidcRoleStack(Stack):
 
         # Construct the 'sub' condition with full ref prefix and wildcard support
         # GitHub OIDC 'sub' usually comes as "repo:<org>/<repo>:ref:refs/heads/<branch>"
-        if github_branch == '*':
-            sub_condition = f"repo:{github_org}/{github_repo}:ref:refs/heads/*"
-        else:
-            sub_condition = f"repo:{github_org}/{github_repo}:ref:refs/heads/{github_branch}"
-
         # Define the principal for the role trust policy with correct conditions
         github_oidc_principal = iam.OpenIdConnectPrincipal(
             iam.OpenIdConnectProvider.from_open_id_connect_provider_arn(
@@ -43,7 +38,7 @@ class OidcRoleStack(Stack):
         ).with_conditions({
             "StringEquals": {
                 "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                "token.actions.githubusercontent.com:sub": sub_condition
+                "token.actions.githubusercontent.com:sub": f"repo:{github_org}/{github_repo}:ref:refs/heads/{github_branch}"
             }
         })
 
@@ -64,4 +59,4 @@ class OidcRoleStack(Stack):
 
         # Outputs for use after deployment
         CfnOutput(self, "DeploymentRoleArn", value=deployment_role.role_arn, description="OIDC Role Arn")
-        CfnOutput(self, "OIDCProviderArn", value=github_oidc_provider.attr_arn, description="OIDC Provider Arn")
+        CfnOutput(self, "OIDCProviderArn", value=oidc_provider_arn, description="OIDC Provider Arn")
