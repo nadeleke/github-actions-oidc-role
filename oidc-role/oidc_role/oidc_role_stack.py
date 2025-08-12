@@ -37,8 +37,10 @@ class OidcRoleStack(Stack):
             )
         ).with_conditions({
             "StringLike": {
-                "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
                 "token.actions.githubusercontent.com:sub": f"repo:{github_org}/{github_repo}:ref:refs/heads/{github_branch}"
+            },
+            "StringEqual": {
+                "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
             }
         })
 
