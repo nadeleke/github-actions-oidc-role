@@ -36,7 +36,7 @@ class OidcRoleStack(Stack):
                 self, "GitHubOIDCProviderReference", oidc_provider_arn
             )
         ).with_conditions({
-            "StringEquals": {
+            "StringLike": {
                 "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
                 "token.actions.githubusercontent.com:sub": f"repo:{github_org}/{github_repo}:ref:refs/heads/{github_branch}"
             }
