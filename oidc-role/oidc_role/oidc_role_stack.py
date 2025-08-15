@@ -12,6 +12,7 @@ class OidcRoleStack(Stack):
                  github_org: str,
                  github_repo: str,
                  github_branch: str = '*',
+                 github_tag: str = '*',
                  role_name: str = 'github-actions-deploy-role',
                  **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -36,9 +37,15 @@ class OidcRoleStack(Stack):
                 self, "GitHubOIDCProviderReference", oidc_provider_arn
             )
         ).with_conditions({
-            "StringLike": {
+            "StringEquals": {
                 "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                "token.actions.githubusercontent.com:sub": f"repo:{github_org}/{github_repo}:ref:refs/heads/{github_branch}"
+            },
+            "StringLike": {
+                "token.actions.githubusercontent.com:sub": [
+                    f"repo:{github_org}/{github_repo}:ref:refs/heads/{github_branch}",   # branch pushes
+                    f"repo:{github_org}/{github_repo}:ref:refs/tags/{github_tag}",       # tag pushes
+                    f"repo:{github_org}/{github_repo}:ref:refs/pull/*/merge"             # PR merges
+                ]
             }
         })
 
